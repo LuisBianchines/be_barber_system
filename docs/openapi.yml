@@ -1,0 +1,1391 @@
+openapi: 3.0.3
+info:
+  title: BarberScheduler API
+  description: API REST para sistema de agendamentos de barbearia
+  version: 1.0.0
+  contact:
+    email: luisbianchine2@gmail.com
+
+servers:
+  - url: https://be-barber-system.onrender.com
+    description: Produção
+  - url: http://localhost:3000
+    description: Desenvolvimento
+
+tags:
+  - name: Auth
+    description: Autenticação e registro
+  - name: Services
+    description: Serviços da barbearia (público)
+  - name: Barbers
+    description: Barbeiros (público)
+  - name: Appointments
+    description: Agendamentos (cliente)
+  - name: Barber Schedule
+    description: Agenda do barbeiro logado
+  - name: Admin – Services
+    description: Gerenciamento de serviços (admin)
+  - name: Admin – Barbers
+    description: Gerenciamento de barbeiros (admin)
+  - name: Admin – Reports
+    description: Relatórios (admin)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ── Errors ──────────────────────────────────────────────
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Mensagem de erro.
+      required: [message]
+
+    # ── Auth ────────────────────────────────────────────────
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          example: João Silva
+        email:
+          type: string
+          format: email
+          example: joao@email.com
+        password:
+          type: string
+          minLength: 6
+          example: senha123
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: joao@email.com
+        password:
+          type: string
+          minLength: 1
+          example: senha123
+
+    UserPublic:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [CLIENT, BARBER, ADMIN]
+        createdAt:
+          type: string
+          format: date-time
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user:
+          $ref: '#/components/schemas/UserPublic'
+
+    MeResponse:
+      type: object
+      properties:
+        sub:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [CLIENT, BARBER, ADMIN]
+
+    # ── Services ────────────────────────────────────────────
+    Service:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Corte masculino
+        description:
+          type: string
+          nullable: true
+          example: Corte social ou degradê
+        price:
+          type: string
+          example: "35.00"
+        durationMinutes:
+          type: integer
+          example: 30
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateServiceRequest:
+      type: object
+      required: [name, price, durationMinutes]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          example: Corte masculino
+        description:
+          type: string
+          nullable: true
+          example: Corte social ou degradê
+        price:
+          type: number
+          minimum: 0.01
+          example: 35.00
+        durationMinutes:
+          type: integer
+          minimum: 1
+          example: 30
+
+    UpdateServiceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+          minimum: 0.01
+        durationMinutes:
+          type: integer
+          minimum: 1
+        active:
+          type: boolean
+
+    # ── Barbers ─────────────────────────────────────────────
+    BarberUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+
+    Barber:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        bio:
+          type: string
+          nullable: true
+          example: Especialista em degradê
+        active:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/BarberUser'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateBarberRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          example: Carlos Ferreira
+        email:
+          type: string
+          format: email
+          example: carlos@barbearia.com
+        password:
+          type: string
+          minLength: 6
+          example: senha123
+        bio:
+          type: string
+          nullable: true
+          example: Especialista em degradê
+
+    # ── Availability ────────────────────────────────────────
+    AvailabilitySlot:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        barberId:
+          type: string
+          format: uuid
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: "0=domingo, 1=segunda, ..., 6=sábado"
+        startTime:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: "09:00"
+        endTime:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: "18:00"
+        active:
+          type: boolean
+
+    AvailabilityItem:
+      type: object
+      required: [weekday, startTime, endTime]
+      properties:
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: "0=domingo, 1=segunda, ..., 6=sábado"
+          example: 1
+        startTime:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: "09:00"
+        endTime:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: "18:00"
+        active:
+          type: boolean
+          default: true
+
+    SetAvailabilityRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AvailabilityItem'
+
+    # ── Appointments ────────────────────────────────────────
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        clientId:
+          type: string
+          format: uuid
+        barberId:
+          type: string
+          format: uuid
+        serviceId:
+          type: string
+          format: uuid
+        appointmentDate:
+          type: string
+          format: date-time
+        startTime:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: "10:00"
+        endTime:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: "10:30"
+        status:
+          type: string
+          enum: [SCHEDULED, COMPLETED, CANCELLED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AppointmentWithRelations:
+      allOf:
+        - $ref: '#/components/schemas/Appointment'
+        - type: object
+          properties:
+            client:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+            service:
+              type: object
+              properties:
+                name:
+                  type: string
+                durationMinutes:
+                  type: integer
+                price:
+                  type: string
+
+    CreateAppointmentRequest:
+      type: object
+      required: [barberId, serviceId, appointmentDate, startTime]
+      properties:
+        barberId:
+          type: string
+          format: uuid
+        serviceId:
+          type: string
+          format: uuid
+        appointmentDate:
+          type: string
+          format: date
+          example: "2026-06-10"
+        startTime:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: "10:00"
+
+    RescheduleRequest:
+      type: object
+      required: [appointmentDate, startTime]
+      properties:
+        appointmentDate:
+          type: string
+          format: date
+          example: "2026-06-15"
+        startTime:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: "14:00"
+
+    # ── Reports ─────────────────────────────────────────────
+    ReportSummary:
+      type: object
+      properties:
+        totalAppointments:
+          type: integer
+        scheduled:
+          type: integer
+        completed:
+          type: integer
+        cancelled:
+          type: integer
+        topServices:
+          type: array
+          items:
+            type: object
+            properties:
+              serviceId:
+                type: string
+                format: uuid
+              _count:
+                type: object
+                properties:
+                  id:
+                    type: integer
+        topBarbers:
+          type: array
+          items:
+            type: object
+            properties:
+              barberId:
+                type: string
+                format: uuid
+              _count:
+                type: object
+                properties:
+                  id:
+                    type: integer
+
+# ════════════════════════════════════════════════════════════
+# PATHS
+# ════════════════════════════════════════════════════════════
+paths:
+
+  # ── Health ──────────────────────────────────────────────
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API online
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ── Auth ────────────────────────────────────────────────
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar novo usuário
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Usuário criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: E-mail já cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Token JWT e dados do usuário
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Credenciais inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Dados do usuário autenticado
+      operationId: me
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payload do token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Services (public) ────────────────────────────────────
+  /services:
+    get:
+      tags: [Services]
+      summary: Listar serviços ativos
+      operationId: listServices
+      parameters:
+        - in: query
+          name: active
+          schema:
+            type: string
+            enum: [true, false]
+            default: "true"
+          description: Filtrar por status ativo
+      responses:
+        '200':
+          description: Lista de serviços
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+
+  /services/{id}:
+    get:
+      tags: [Services]
+      summary: Detalhe de um serviço
+      operationId: getService
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Serviço encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '404':
+          description: Não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Barbers (public) ─────────────────────────────────────
+  /barbers:
+    get:
+      tags: [Barbers]
+      summary: Listar barbeiros ativos
+      operationId: listBarbers
+      parameters:
+        - in: query
+          name: active
+          schema:
+            type: string
+            enum: [true, false]
+            default: "true"
+      responses:
+        '200':
+          description: Lista de barbeiros
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Barber'
+
+  /barbers/{id}:
+    get:
+      tags: [Barbers]
+      summary: Detalhe de um barbeiro
+      operationId: getBarber
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Barbeiro encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Barber'
+        '404':
+          description: Não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Appointments ─────────────────────────────────────────
+  /appointments/available-slots:
+    get:
+      tags: [Appointments]
+      summary: Horários disponíveis de um barbeiro
+      operationId: getAvailableSlots
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: barberId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: serviceId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
+            example: "2026-06-10"
+      responses:
+        '200':
+          description: Array de horários no formato HH:MM
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  pattern: '^\d{2}:\d{2}$'
+                example: ["09:00", "09:30", "10:00", "14:00"]
+        '400':
+          description: Parâmetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Serviço ou barbeiro não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /appointments:
+    post:
+      tags: [Appointments]
+      summary: Criar agendamento
+      operationId: createAppointment
+      description: Apenas clientes com role CLIENT podem criar agendamentos.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppointmentRequest'
+      responses:
+        '201':
+          description: Agendamento criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          description: Data no passado ou dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Apenas clientes podem agendar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Serviço ou barbeiro não encontrado/inativo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflito de horário
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /appointments/me:
+    get:
+      tags: [Appointments]
+      summary: Meus agendamentos
+      operationId: myAppointments
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de agendamentos do usuário logado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Appointment'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /appointments/{id}/cancel:
+    patch:
+      tags: [Appointments]
+      summary: Cancelar agendamento
+      operationId: cancelAppointment
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Agendamento cancelado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          description: Agendamento já cancelado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Agendamento não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /appointments/{id}/reschedule:
+    patch:
+      tags: [Appointments]
+      summary: Reagendar
+      operationId: rescheduleAppointment
+      description: Apenas o cliente dono do agendamento pode reagendar.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RescheduleRequest'
+      responses:
+        '200':
+          description: Agendamento reagendado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          description: Dados inválidos ou data no passado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Agendamento não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflito de horário
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /appointments/{id}/complete:
+    patch:
+      tags: [Appointments]
+      summary: Marcar como concluído
+      operationId: completeAppointment
+      description: Apenas BARBER ou ADMIN.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Agendamento concluído
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Agendamento não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Barber Schedule ──────────────────────────────────────
+  /barber/appointments:
+    get:
+      tags: [Barber Schedule]
+      summary: Agenda do barbeiro logado
+      operationId: barberSchedule
+      description: Requer role BARBER ou ADMIN.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+            example: "2026-06-10"
+          description: Filtrar por data (opcional)
+      responses:
+        '200':
+          description: Lista de agendamentos com dados do cliente e serviço
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AppointmentWithRelations'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Perfil de barbeiro não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Admin – Services ─────────────────────────────────────
+  /admin/services:
+    get:
+      tags: [Admin – Services]
+      summary: Listar todos os serviços (admin)
+      operationId: adminListServices
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Todos os serviços incluindo inativos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão de admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Admin – Services]
+      summary: Criar serviço
+      operationId: createService
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceRequest'
+      responses:
+        '201':
+          description: Serviço criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão de admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/services/{id}:
+    put:
+      tags: [Admin – Services]
+      summary: Atualizar serviço
+      operationId: updateService
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateServiceRequest'
+      responses:
+        '200':
+          description: Serviço atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão de admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Serviço não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/services/{id}/toggle-active:
+    patch:
+      tags: [Admin – Services]
+      summary: Ativar / desativar serviço
+      operationId: toggleServiceActive
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Status alterado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão de admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Serviço não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Admin – Barbers ──────────────────────────────────────
+  /admin/barbers:
+    get:
+      tags: [Admin – Barbers]
+      summary: Listar todos os barbeiros (admin)
+      operationId: adminListBarbers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Todos os barbeiros incluindo inativos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Barber'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão de admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Admin – Barbers]
+      summary: Cadastrar barbeiro
+      operationId: createBarber
+      description: Cria usuário com role BARBER e perfil de barbeiro atomicamente.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBarberRequest'
+      responses:
+        '201':
+          description: Barbeiro criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Barber'
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão de admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: E-mail já cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/barbers/{id}/toggle-active:
+    patch:
+      tags: [Admin – Barbers]
+      summary: Ativar / desativar barbeiro
+      operationId: toggleBarberActive
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Status alterado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Barber'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão de admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Barbeiro não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/barbers/{barberId}/availability:
+    get:
+      tags: [Admin – Barbers]
+      summary: Ver disponibilidade do barbeiro
+      operationId: getBarberAvailability
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: barberId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de slots de disponibilidade
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AvailabilitySlot'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão de admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Barbeiro não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags: [Admin – Barbers]
+      summary: Definir disponibilidade do barbeiro
+      operationId: setBarberAvailability
+      description: Substitui toda a disponibilidade existente pelo novo conjunto.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: barberId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetAvailabilityRequest'
+            example:
+              items:
+                - weekday: 1
+                  startTime: "09:00"
+                  endTime: "18:00"
+                - weekday: 2
+                  startTime: "09:00"
+                  endTime: "18:00"
+                - weekday: 3
+                  startTime: "09:00"
+                  endTime: "18:00"
+                - weekday: 4
+                  startTime: "09:00"
+                  endTime: "18:00"
+                - weekday: 5
+                  startTime: "09:00"
+                  endTime: "18:00"
+                - weekday: 6
+                  startTime: "09:00"
+                  endTime: "13:00"
+      responses:
+        '200':
+          description: Disponibilidade atualizada
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AvailabilitySlot'
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão de admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Barbeiro não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Admin – Reports ──────────────────────────────────────
+  /admin/reports/summary:
+    get:
+      tags: [Admin – Reports]
+      summary: Resumo de agendamentos
+      operationId: reportSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+            example: "2026-05-01"
+          description: Data inicial (opcional)
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+            example: "2026-05-31"
+          description: Data final (opcional)
+      responses:
+        '200':
+          description: Resumo de agendamentos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportSummary'
+        '401':
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sem permissão de admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
