@@ -12,7 +12,7 @@ model User {
   name         String
   email        String   @unique
   passwordHash String
-  role         Role     @default(CLIENT)
+  role         UserRole @default(CLIENT)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -20,7 +20,7 @@ model User {
   appointments Appointment[] @relation("ClientAppointments")
 }
 
-enum Role {
+enum UserRole {
   CLIENT
   BARBER
   ADMIN
@@ -53,13 +53,18 @@ model Barber {
 }
 
 model BarberAvailability {
-  id        String @id @default(uuid())
+  id        String   @id @default(uuid())
   barberId  String
   weekday   Int
   startTime String
   endTime   String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   barber Barber @relation(fields: [barberId], references: [id])
+
+  @@index([barberId, weekday])
 }
 
 model Appointment {
@@ -77,6 +82,9 @@ model Appointment {
   client  User    @relation("ClientAppointments", fields: [clientId], references: [id])
   barber  Barber  @relation(fields: [barberId], references: [id])
   service Service @relation(fields: [serviceId], references: [id])
+
+  @@index([barberId, appointmentDate, status])
+  @@index([clientId])
 }
 
 enum AppointmentStatus {

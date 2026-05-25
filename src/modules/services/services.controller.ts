@@ -2,11 +2,18 @@ import { Request, Response, NextFunction } from 'express';
 import * as servicesService from './services.service';
 
 export async function getAllHandler(req: Request, res: Response, next: NextFunction) {
-  try { return res.json(await servicesService.getAll()); } catch (err) { return next(err); }
+  try {
+    const onlyActive = req.query['active'] !== 'false';
+    return res.json(await servicesService.getAll(onlyActive));
+  } catch (err) { return next(err); }
+}
+
+export async function getAllAdminHandler(_req: Request, res: Response, next: NextFunction) {
+  try { return res.json(await servicesService.getAll(false)); } catch (err) { return next(err); }
 }
 
 export async function getByIdHandler(req: Request, res: Response, next: NextFunction) {
-  try { return res.json(await servicesService.getById(req.params.id)); } catch (err) { return next(err); }
+  try { return res.json(await servicesService.getById(req.params.id as string)); } catch (err) { return next(err); }
 }
 
 export async function createHandler(req: Request, res: Response, next: NextFunction) {
@@ -14,9 +21,9 @@ export async function createHandler(req: Request, res: Response, next: NextFunct
 }
 
 export async function updateHandler(req: Request, res: Response, next: NextFunction) {
-  try { return res.json(await servicesService.update(req.params.id, req.body)); } catch (err) { return next(err); }
+  try { return res.json(await servicesService.update(req.params.id as string, req.body)); } catch (err) { return next(err); }
 }
 
-export async function deleteHandler(req: Request, res: Response, next: NextFunction) {
-  try { await servicesService.remove(req.params.id); return res.status(204).send(); } catch (err) { return next(err); }
+export async function toggleActiveHandler(req: Request, res: Response, next: NextFunction) {
+  try { return res.json(await servicesService.toggleActive(req.params.id as string)); } catch (err) { return next(err); }
 }

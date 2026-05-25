@@ -1,38 +1,56 @@
 import { prisma } from '../../lib/prisma';
-import { CreateBarberInput, UpdateBarberInput, AvailabilityInput } from './barbers.types';
+import { AvailabilityItem } from './barbers.types';
 
-export function findAll() {
-  return prisma.barber.findMany({ where: { active: true }, include: { user: { select: { name: true, email: true } } } });
+export function findAll(onlyActive = true) {
+  return prisma.barber.findMany({
+    where: onlyActive ? { active: true } : undefined,
+    include: { user: { select: { name: true, email: true } } },
+    orderBy: { user: { name: 'asc' } },
+  });
 }
 
 export function findById(id: string) {
-  return prisma.barber.findUnique({ where: { id }, include: { user: { select: { name: true, email: true } }, availability: true } });
+  return prisma.barber.findUnique({
+    where: { id },
+    include: { user: { select: { name: true, email: true } }, availability: { where: { active: true } } },
+  });
 }
 
-export function create(data: CreateBarberInput) {
-  return prisma.barber.create({ data });
+export function findByUserId(userId: string) {
+  return prisma.barber.findUnique({ where: { userId } });
 }
 
-export function updateById(id: string, data: UpdateBarberInput) {
+export async function createWithUser(data: { name: string; email: string; passwordHash: string; bio?: string }) {
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: { name: data.name, email: data.email, passwordHash: data.passwordHash, role: 'BARBER' },
+    });
+    const barber = await tx.barber.create({
+      data: { userId: user.id, bio: data.bio },
+      include: { user: { select: { id: true, name: true, email: true, role: true } } },
+    });
+    return barber;
+  });
+}
+
+export function updateById(id: string, data: { bio?: string }) {
   return prisma.barber.update({ where: { id }, data });
 }
 
-export function deleteById(id: string) {
-  return prisma.barber.update({ where: { id }, data: { active: false } });
+export async function toggleActive(id: string) {
+  const barber = await prisma.barber.findUnique({ where: { id }, select: { active: true } });
+  return prisma.barber.update({ where: { id }, data: { active: !barber?.active } });
 }
 
 export function findAvailability(barberId: string) {
-  return prisma.barberAvailability.findMany({ where: { barberId } });
+  return prisma.barberAvailability.findMany({ where: { barberId }, orderBy: { weekday: 'asc' } });
 }
 
-export function createAvailability(barberId: string, data: AvailabilityInput) {
-  return prisma.barberAvailability.create({ data: { barberId, ...data } });
-}
-
-export function updateAvailability(id: string, data: AvailabilityInput) {
-  return prisma.barberAvailability.update({ where: { id }, data });
-}
-
-export function deleteAvailability(id: string) {
-  return prisma.barberAvailability.delete({ where: { id } });
+export async function setAvailabilityBulk(barberId: string, items: AvailabilityItem[]) {
+  return prisma.$transaction(async (tx) => {
+    await tx.barberAvailability.deleteMany({ where: { barberId } });
+    return tx.barberAvailability.createMany({
+      data: items.map(item => ({ barberId, ...item })),
+    });
+  });
 }

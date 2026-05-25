@@ -1,9 +1,10 @@
 import { AppError } from '../../middlewares/app-error';
+import { hashPassword } from '../../lib/password';
 import * as repo from './barbers.repository';
-import { CreateBarberInput, UpdateBarberInput, AvailabilityInput } from './barbers.types';
+import { CreateBarberWithUserInput, UpdateBarberInput, BulkAvailabilityInput } from './barbers.types';
 
-export function getAll() {
-  return repo.findAll();
+export function getAll(onlyActive = true) {
+  return repo.findAll(onlyActive);
 }
 
 export async function getById(id: string) {
@@ -12,8 +13,9 @@ export async function getById(id: string) {
   return barber;
 }
 
-export function create(data: CreateBarberInput) {
-  return repo.create(data);
+export async function createBarberWithUser(data: CreateBarberWithUserInput) {
+  const passwordHash = await hashPassword(data.password);
+  return repo.createWithUser({ name: data.name, email: data.email, passwordHash, bio: data.bio });
 }
 
 export async function update(id: string, data: UpdateBarberInput) {
@@ -21,26 +23,17 @@ export async function update(id: string, data: UpdateBarberInput) {
   return repo.updateById(id, data);
 }
 
-export async function remove(id: string) {
+export async function toggleActive(id: string) {
   await getById(id);
-  return repo.deleteById(id);
+  return repo.toggleActive(id);
 }
 
 export function getAvailability(barberId: string) {
   return repo.findAvailability(barberId);
 }
 
-export async function createAvailability(barberId: string, data: AvailabilityInput) {
+export async function setAvailabilityBulk(barberId: string, data: BulkAvailabilityInput) {
   await getById(barberId);
-  return repo.createAvailability(barberId, data);
-}
-
-export async function updateAvailability(barberId: string, id: string, data: AvailabilityInput) {
-  await getById(barberId);
-  return repo.updateAvailability(id, data);
-}
-
-export async function deleteAvailability(barberId: string, id: string) {
-  await getById(barberId);
-  return repo.deleteAvailability(id);
+  await repo.setAvailabilityBulk(barberId, data.items);
+  return repo.findAvailability(barberId);
 }

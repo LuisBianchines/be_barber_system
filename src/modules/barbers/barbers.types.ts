@@ -1,15 +1,21 @@
-export interface CreateBarberInput {
-  userId: string;
+export interface CreateBarberWithUserInput {
+  name: string;
+  email: string;
+  password: string;
   bio?: string;
 }
 
 export interface UpdateBarberInput {
   bio?: string;
-  active?: boolean;
 }
 
-export interface AvailabilityInput {
+export interface AvailabilityItem {
   weekday: number;
   startTime: string;
   endTime: string;
+  active: boolean;
+}
+
+export interface BulkAvailabilityInput {
+  items: AvailabilityItem[];
 }

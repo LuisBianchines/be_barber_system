@@ -2,8 +2,8 @@ import { AppError } from '../../middlewares/app-error';
 import * as repo from './services.repository';
 import { CreateServiceInput, UpdateServiceInput } from './services.types';
 
-export function getAll() {
-  return repo.findAll();
+export function getAll(onlyActive = true) {
+  return repo.findAll(onlyActive);
 }
 
 export async function getById(id: string) {
@@ -21,7 +21,7 @@ export async function update(id: string, data: UpdateServiceInput) {
   return repo.updateById(id, data);
 }
 
-export async function remove(id: string) {
+export async function toggleActive(id: string) {
   await getById(id);
-  return repo.deleteById(id);
+  return repo.toggleActive(id);
 }

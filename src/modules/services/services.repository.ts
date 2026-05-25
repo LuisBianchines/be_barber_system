@@ -1,8 +1,11 @@
 import { prisma } from '../../lib/prisma';
 import { CreateServiceInput, UpdateServiceInput } from './services.types';
 
-export function findAll() {
-  return prisma.service.findMany({ where: { active: true } });
+export function findAll(onlyActive = true) {
+  return prisma.service.findMany({
+    where: onlyActive ? { active: true } : undefined,
+    orderBy: { name: 'asc' },
+  });
 }
 
 export function findById(id: string) {
@@ -17,6 +20,7 @@ export function updateById(id: string, data: UpdateServiceInput) {
   return prisma.service.update({ where: { id }, data });
 }
 
-export function deleteById(id: string) {
-  return prisma.service.update({ where: { id }, data: { active: false } });
+export async function toggleActive(id: string) {
+  const service = await prisma.service.findUnique({ where: { id }, select: { active: true } });
+  return prisma.service.update({ where: { id }, data: { active: !service?.active } });
 }
