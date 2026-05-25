@@ -18,7 +18,7 @@ export function validate(schema: ZodTypeAny) {
 
     const data = result.data as { body?: unknown; params?: unknown; query?: unknown };
     if (data.body !== undefined) req.body = data.body;
-    if (data.query !== undefined) req.query = data.query as Record<string, string>;
+    if (data.query !== undefined) Object.assign(req.query, data.query);
     return next();
   };
 }
