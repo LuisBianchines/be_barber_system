@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(CLIENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  barber       Barber?
+  appointments Appointment[] @relation("ClientAppointments")
+}
+
+enum Role {
+  CLIENT
+  BARBER
+  ADMIN
+}
+
+model Service {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  price           Decimal
+  durationMinutes Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  appointments Appointment[]
+}
+
+model Barber {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  bio       String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                 @relation(fields: [userId], references: [id])
+  availability BarberAvailability[]
+  appointments Appointment[]
+}
+
+model BarberAvailability {
+  id        String @id @default(uuid())
+  barberId  String
+  weekday   Int
+  startTime String
+  endTime   String
+
+  barber Barber @relation(fields: [barberId], references: [id])
+}
+
+model Appointment {
+  id              String            @id @default(uuid())
+  clientId        String
+  barberId        String
+  serviceId       String
+  appointmentDate DateTime
+  startTime       String
+  endTime         String
+  status          AppointmentStatus @default(SCHEDULED)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  client  User    @relation("ClientAppointments", fields: [clientId], references: [id])
+  barber  Barber  @relation(fields: [barberId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
